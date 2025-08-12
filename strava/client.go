@@ -1578,4 +1578,4 @@ type ActivityZoneEffortDetailSetDetailSetDetailSetDetailSetDetailSetDetailSetDet
 	Watts           int      `json:"watts"`
 	Temperature     int      `json:"temperature"`
 	Grade           float64  `json:"grade"`
-	Cl
+}
