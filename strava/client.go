@@ -1,6 +1,4 @@
-
 package strava
-
 
 import (
 	"bytes"
@@ -12,15 +10,33 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// GetAthleteByID fetches public info for a specific athlete ID (if allowed by Strava API and token)
+func (c *Client) GetAthleteByID(athleteID int64) (*Athlete, error) {
+	url := fmt.Sprintf("%s/athletes/%d", stravaAPIBase, athleteID)
+	resp, err := c.HTTPClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
+	}
+	var athlete Athlete
+	if err := json.NewDecoder(resp.Body).Decode(&athlete); err != nil {
+		return nil, err
+	}
+	return &athlete, nil
+}
+
 type SummaryClub struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
 }
 
 type SummaryGear struct {
-	ID     string  `json:"id"`
-	Name   string  `json:"name"`
-	Primary bool   `json:"primary"`
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	Primary  bool    `json:"primary"`
 	Distance float64 `json:"distance"`
 }
 
@@ -95,7 +111,6 @@ type ActivityStats struct {
 
 type ActivityType string
 
-
 type BaseStream struct{}
 
 type ClubActivity struct{}
@@ -123,8 +138,6 @@ type PhotosSummary_primary struct{}
 type PolylineMap struct{}
 
 type PowerZoneRanges struct{}
-
-
 
 type DetailedAthlete struct {
 	ID                    int64         `json:"id"`
@@ -1165,7 +1178,6 @@ type ActivityZoneEffortDetailSetDetailSetDetailSetDetailSetDetailSetDetailSetDet
 	Athlete        SummaryAthlete `json:"athlete"`
 }
 
-
 type ActivityZoneEffortDetailSetDetailSetDetailSetDetailSetDetailSetDetailSetDetailSetDetailSet struct {
 	ID             int64          `json:"id"`
 	ActivityID     int64          `json:"activity_id"`
@@ -1235,7 +1247,6 @@ type ActivityZoneEffortDetailSetDetailSetDetailSetDetailSetDetailSetDetailSetDet
 	StartDateLocal string         `json:"start_date_local"`
 	Athlete        SummaryAthlete `json:"athlete"`
 }
-
 
 type ActivityZoneEffortDetailSetDetailSetDetailSetDetailSetDetailSetDetailSetDetailSetDetailSetDetailSet struct {
 	ID             int64   `json:"id"`

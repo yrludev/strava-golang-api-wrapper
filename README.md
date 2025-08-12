@@ -36,17 +36,35 @@ This project is a Go (Golang) client library and demo for interacting with the S
 	  export STRAVA_ACCESS_TOKEN=your_access_token_here
 	  ```
 
-## Running the Demo
-Run the example program to see the API wrapper in action:
+
+## Running Examples
+
+### 1. Demo: Fetch Athlete Info, Activities, Segments, etc.
 
 ```sh
 # In the project root directory
 # Make sure STRAVA_ACCESS_TOKEN is set as described above
-
 go run main.go
 ```
 
 The demo will print your athlete info, recent activities, segments, clubs, gear, and more, using the Strava API.
+
+### 2. Create an Activity (like a direct API call)
+
+You can create a new activity using command-line flags, similar to a direct API POST:
+
+```powershell
+$env:STRAVA_ACCESS_TOKEN="your_token_here"; go run main.go --create-activity --activity-name="Morning Ride" --activity-type="Ride" --sport-type="Cycling" --start-date-local="2025-08-12T07:00:00Z" --elapsed-time=3600 --description="Test ride" --distance=20000 --trainer=0 --commute=0 --json
+```
+
+Or on Linux/macOS:
+
+```sh
+export STRAVA_ACCESS_TOKEN=your_token_here
+go run main.go --create-activity --activity-name="Morning Ride" --activity-type="Ride" --sport-type="Cycling" --start-date-local="2025-08-12T07:00:00Z" --elapsed-time=3600 --description="Test ride" --distance=20000 --trainer=0 --commute=0 --json
+```
+
+This will create the activity and print the result as JSON. All required fields must be provided.
 
 ## Notes
 - The wrapper is a work in progress and may not cover every Strava API endpoint.

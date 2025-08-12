@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +12,28 @@ import (
 )
 
 func main() {
+	createActivity := flag.Bool("create-activity", false, "Create a new activity")
+	activityName := flag.String("activity-name", "", "Activity name")
+	activityType := flag.String("activity-type", "", "Activity type (e.g., Ride)")
+	sportType := flag.String("sport-type", "", "Sport type (e.g., Cycling)")
+	startDateLocal := flag.String("start-date-local", "", "Start date local (e.g., 2025-08-12T07:00:00Z)")
+	elapsedTime := flag.Int("elapsed-time", 0, "Elapsed time in seconds")
+	description := flag.String("description", "", "Description")
+	distance := flag.Float64("distance", 0, "Distance in meters")
+	trainer := flag.Int("trainer", 0, "Trainer (0 or 1)")
+	commute := flag.Int("commute", 0, "Commute (0 or 1)")
+	var (
+		fetchAthlete    = flag.Bool("athlete", false, "Fetch athlete profile")
+		fetchStats      = flag.Bool("stats", false, "Fetch athlete stats")
+		fetchActivities = flag.Bool("activities", false, "Fetch recent activities")
+		fetchSegments   = flag.Bool("segments", false, "Fetch segments in SF area")
+		fetchClub       = flag.Int64("club", 0, "Fetch club by ID (0 to skip)")
+		fetchGear       = flag.Bool("gear", false, "Fetch first bike's gear details")
+		athleteID       = flag.Int64("athlete-id", 0, "Fetch public info for this athlete ID (if allowed)")
+		outputJSON      = flag.Bool("json", true, "Output as JSON (default true)")
+	)
+	flag.Parse()
+
 	accessToken := os.Getenv("STRAVA_ACCESS_TOKEN")
 	if accessToken == "" {
 		log.Fatal("STRAVA_ACCESS_TOKEN environment variable not set")
@@ -17,82 +41,92 @@ func main() {
 	token := &oauth2.Token{AccessToken: accessToken}
 	client := strava.NewClient(token)
 
-	fmt.Println("Strava API Wrapper Demo")
+	result := make(map[string]interface{})
 
-	athlete, err := client.GetAthlete()
-	if err != nil {
-		log.Fatalf("Error getting athlete: %v", err)
-	}
-	fmt.Printf("Hello, %s %s! (ID: %d)\n", athlete.FirstName, athlete.LastName, athlete.ID)
-
-	stats, err := client.GetAthleteStats(athlete.ID)
-	if err == nil {
-		fmt.Printf("Recent ride total distance: %.2f meters\n", stats.RecentRideTotals.Distance)
-	}
-
-	activities, err := client.ListAthleteActivities(0, 0, 1, 3)
-	if err == nil && len(activities) > 0 {
-		fmt.Printf("Recent activities:\n")
-		for _, act := range activities {
-			fmt.Printf("- %s (ID: %d, Distance: %.2fm)\n", act.Name, act.ID, act.Distance)
+	if *createActivity {
+		if *activityName == "" || *activityType == "" || *sportType == "" || *startDateLocal == "" || *elapsedTime == 0 {
+			log.Fatal("Missing required fields for activity creation. Required: --activity-name, --activity-type, --sport-type, --start-date-local, --elapsed-time")
 		}
-		activity, err := client.GetActivityByID(activities[0].ID, false)
-		if err == nil {
-			fmt.Printf("First activity details: %s, %s, %.2fm\n", activity.Name, activity.SportType, activity.Distance)
+		activity, err := client.CreateActivity(
+			*activityName,
+			*activityType,
+			*sportType,
+			*startDateLocal,
+			*elapsedTime,
+			*description,
+			*distance,
+			*trainer,
+			*commute,
+		)
+		if err != nil {
+			log.Fatalf("Error creating activity: %v", err)
 		}
-		comments, err := client.ListActivityComments(activities[0].ID, 5, "")
-		if err == nil && len(comments) > 0 {
-			fmt.Printf("Comments on first activity:\n")
-			for _, c := range comments {
-				fmt.Printf("- %s: %s\n", c.Athlete.FirstName, c.Text)
+		if *outputJSON {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			enc.Encode(activity)
+		} else {
+			fmt.Printf("Created activity: %+v\n", activity)
+		}
+		return
+	}
+
+	if *athleteID != 0 {
+		// Fetch public info for a specific athlete ID
+		athlete, err := client.GetAthleteByID(*athleteID)
+		if err != nil {
+			log.Fatalf("Error getting athlete by ID: %v", err)
+		}
+		result["athlete"] = athlete
+	} else if *fetchAthlete || *fetchStats || *fetchGear || *fetchClub != 0 {
+		athlete, err := client.GetAthlete()
+		if err != nil {
+			log.Fatalf("Error getting athlete: %v", err)
+		}
+		if *fetchAthlete {
+			result["athlete"] = athlete
+		}
+		if *fetchStats {
+			stats, err := client.GetAthleteStats(athlete.ID)
+			if err == nil {
+				result["stats"] = stats
+			}
+		}
+		if *fetchGear && len(athlete.Bikes) > 0 {
+			gear, err := client.GetDetailedGear(athlete.Bikes[0].ID)
+			if err == nil {
+				result["gear"] = gear
 			}
 		}
 	}
 
-	bounds := [4]float64{37.82, -122.52, 37.84, -122.35}
-	explorer, err := client.ExploreSegments(bounds, "riding", 0, 5)
-	if err == nil && len(explorer.Segments) > 0 {
-		seg := explorer.Segments[0]
-		fmt.Printf("Explorer segment: %s (ID: %d)\n", seg.Name, seg.ID)
-		segment, err := client.GetSegment(seg.ID)
+	if *fetchActivities {
+		activities, err := client.ListAthleteActivities(0, 0, 1, 10)
 		if err == nil {
-			fmt.Printf("Detailed segment: %s, %.2fm, avg grade %.2f%%\n", segment.Name, segment.Distance, segment.AverageGrade)
-		}
-	}
-	starred, err := client.ListStarredSegments(1, 3)
-	if err == nil && len(starred) > 0 {
-		fmt.Printf("Starred segments:\n")
-		for _, s := range starred {
-			fmt.Printf("- %s (ID: %d)\n", s.Name, s.ID)
+			result["activities"] = activities
 		}
 	}
 
-	club, err := client.GetClub(1)
-	if err == nil {
-		fmt.Printf("Club: %s (ID: %d, Members: %d)\n", club.Name, club.ID, club.MemberCount)
-	}
-
-	if len(athlete.Bikes) > 0 {
-		gear, err := client.GetDetailedGear(athlete.Bikes[0].ID)
+	if *fetchSegments {
+		bounds := [4]float64{37.82, -122.52, 37.84, -122.35}
+		explorer, err := client.ExploreSegments(bounds, "riding", 0, 5)
 		if err == nil {
-			fmt.Printf("Bike: %s, Brand: %s, Model: %s\n", gear.Name, gear.BrandName, gear.ModelName)
+			result["segments"] = explorer.Segments
 		}
 	}
 
-	route, err := client.GetRoute(1)
-	if err == nil {
-		fmt.Printf("Route: %s (ID: %d, Distance: %.2fm)\n", route.Name, route.ID, route.Distance)
-	}
-
-	upload, err := client.GetUpload(1)
-	if err == nil {
-		fmt.Printf("Upload: %s (ID: %d, Status: %s)\n", upload.IDStr, upload.ID, upload.Status)
-	}
-
-	if len(activities) > 0 {
-		streams, err := client.GetActivityStreams(activities[0].ID, []string{"distance", "latlng"}, true)
-		if err == nil && streams != nil {
-			fmt.Printf("Got streams for activity %d\n", activities[0].ID)
+	if *fetchClub != 0 {
+		club, err := client.GetClub(*fetchClub)
+		if err == nil {
+			result["club"] = club
 		}
+	}
+
+	if *outputJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(result)
+	} else {
+		fmt.Printf("%+v\n", result)
 	}
 }
